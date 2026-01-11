@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股投資規畫工具 - 引導版</title>
+    <title>台股投資規畫工具 - 完整專業版</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -13,7 +13,7 @@
 
         <div v-if="currentStep === 1" class="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-black text-slate-800 tracking-tight">開始你的投資規畫</h1>
+                <h1 class="text-3xl font-black text-slate-800 tracking-tight">開始投資規畫</h1>
                 <p class="text-slate-500 mt-2">第一步：請選取你想加入試算的台股標的</p>
             </div>
 
@@ -59,13 +59,13 @@
             </div>
         </div>
 
-        <div v-if="currentStep === 2" class="fade-in">
+        <div v-if="currentStep === 2">
             <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div class="flex items-center gap-4">
                     <button @click="currentStep = 1" class="bg-white border border-slate-200 p-2 rounded-xl hover:bg-slate-50">⬅</button>
                     <div>
                         <h1 class="text-3xl font-black text-slate-800">Investment Dashboard</h1>
-                        <p class="text-slate-500 text-sm">自定義配置完成，開始分析您的財富路徑</p>
+                        <p class="text-slate-500 text-sm">庫存資產 + 定期定額複利模型</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -117,14 +117,37 @@
 
                 <div class="col-span-12 xl:col-span-4 space-y-6">
                     <div class="bg-slate-800 p-6 rounded-3xl text-white shadow-xl shadow-slate-200">
-                        <p class="text-slate-400 text-xs font-medium">預估 10 年後總價值</p>
-                        <h2 class="text-4xl font-black mt-2 tracking-tight text-blue-400">
-                            NT$ {{ (calculateFutureValue(10)/10000).toFixed(0) }} <span class="text-lg text-white">萬</span>
+                        <div class="flex justify-between items-center mb-4">
+                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">預估 {{ targetYears }} 年後總價值</p>
+                            <span class="text-[10px] bg-blue-600 px-2 py-1 rounded font-bold">{{ targetYears }}Y</span>
+                        </div>
+                        <h2 class="text-4xl font-black tracking-tight text-blue-400 mb-6">
+                            NT$ {{ (calculateFutureValue(targetYears)/10000).toFixed(0) }} <span class="text-lg text-white">萬</span>
                         </h2>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-6 pt-6 border-t border-slate-700">
+                            <div>
+                                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">目前庫存市值</p>
+                                <p class="text-lg font-bold text-white">{{ (currentInventoryValue/10000).toFixed(1) }} <span class="text-xs">萬</span></p>
+                            </div>
+                            <div>
+                                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">月投入總額</p>
+                                <p class="text-lg font-bold text-white">{{ (totalMonthlyAmount/1000).toFixed(1) }} <span class="text-xs">K</span></p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 border-t border-slate-700 pt-4">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-bold">
+                                <span>1年</span>
+                                <span>試算年限調整</span>
+                                <span>40年</span>
+                            </div>
+                            <input type="range" v-model.number="targetYears" min="1" max="40" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        </div>
                     </div>
 
                     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">資產增長曲線</h3>
+                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">資產增長曲線 ({{ targetYears }}年)</h3>
                         <div class="h-[200px]"><canvas id="growthChart"></canvas></div>
                     </div>
 
@@ -137,7 +160,7 @@
                                 <div class="text-[10px] font-black text-slate-400 mb-1 border-b pb-1">{{ m }}月</div>
                                 <div class="flex flex-wrap gap-1">
                                     <span v-for="code in getDividendStocks(m)" :key="code" 
-                                          class="text-[9px] font-bold bg-emerald-600 text-white px-1 rounded">
+                                          class="text-[9px] font-bold bg-emerald-600 text-white px-1 rounded shadow-sm">
                                         {{ code }}
                                     </span>
                                 </div>
@@ -161,9 +184,9 @@
                 const customInput = ref("");
                 const stocks = ref([]);
                 const loading = ref(false);
+                const targetYears = ref(20);
                 let chart = null;
 
-                // 核心數據字典 (用於初始化選取的標的)
                 const masterData = {
                     '0050': { desc: '元大台灣50', months: [1, 7], rate: 8.5 },
                     '0056': { desc: '元大高股息', months: [1, 4, 7, 10], rate: 6.5 },
@@ -173,7 +196,6 @@
                     'default': { desc: '自定義標的', months: [1, 4, 7, 10], rate: 7.0 }
                 };
 
-                // 選取/取消選取邏輯
                 const toggleStock = (id) => {
                     const index = selectedIds.value.indexOf(id);
                     if (index > -1) selectedIds.value.splice(index, 1);
@@ -187,19 +209,10 @@
                     }
                 };
 
-                // 進入儀表板
                 const goToDashboard = async () => {
                     stocks.value = selectedIds.value.map(id => {
                         const meta = masterData[id] || masterData['default'];
-                        return {
-                            id,
-                            holdings: 0,
-                            amount: 0,
-                            frequency: 1,
-                            rate: meta.rate,
-                            months: meta.months,
-                            price: null
-                        };
+                        return { id, holdings: 0, amount: 0, frequency: 1, rate: meta.rate, months: meta.months, price: null };
                     });
                     currentStep.value = 2;
                     fetchPrices();
@@ -207,26 +220,25 @@
                     initChart();
                 };
 
-                // 原有功能函數
                 const fetchPrices = async () => {
                     loading.value = true;
                     try {
                         const tasks = stocks.value.map(s => {
-                            const params = new URLSearchParams({
-                                dataset: "TaiwanStockPrice",
-                                data_id: s.id,
-                                start_date: new Date(Date.now() - 432000000).toISOString().split('T')[0]
-                            });
+                            const params = new URLSearchParams({ dataset: "TaiwanStockPrice", data_id: s.id, start_date: new Date(Date.now() - 432000000).toISOString().split('T')[0] });
                             return fetch(`https://api.finmindtrade.com/api/v4/data?${params}`).then(r => r.json());
                         });
                         const results = await Promise.all(tasks);
-                        results.forEach((res, i) => {
-                            if (res.data && res.data.length > 0) {
-                                stocks.value[i].price = res.data[res.data.length - 1].close;
-                            }
-                        });
+                        results.forEach((res, i) => { if (res.data && res.data.length > 0) stocks.value[i].price = res.data[res.data.length - 1].close; });
                     } catch (e) { console.error(e); } finally { loading.value = false; }
                 };
+
+                const currentInventoryValue = computed(() => {
+                    return stocks.value.reduce((sum, s) => sum + (s.holdings * 1000 * (s.price || 0)), 0);
+                });
+
+                const totalMonthlyAmount = computed(() => {
+                    return stocks.value.reduce((sum, s) => sum + (s.amount * s.frequency * 1000), 0);
+                });
 
                 const calculateFutureValue = (years) => {
                     let total = 0;
@@ -247,9 +259,7 @@
                 };
 
                 const getDividendStocks = (month) => {
-                    return stocks.value
-                        .filter(s => (s.amount > 0 || s.holdings > 0) && s.months.includes(month))
-                        .map(s => s.id);
+                    return stocks.value.filter(s => (s.amount > 0 || s.holdings > 0) && s.months.includes(month)).map(s => s.id);
                 };
 
                 const initChart = () => {
@@ -258,18 +268,13 @@
                     chart = new Chart(ctx.getContext('2d'), {
                         type: 'line',
                         data: {
-                            labels: Array.from({length: 20}, (_, i) => `${i+1}Y`),
-                            datasets: [{
-                                data: [],
-                                borderColor: '#3b82f6',
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                fill: true, tension: 0.4, pointRadius: 2
-                            }]
+                            labels: [],
+                            datasets: [{ data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.4, pointRadius: 2 }]
                         },
                         options: {
                             responsive: true, maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
-                            scales: { y: { display: false }, x: { grid: { display: false } } }
+                            scales: { y: { display: false }, x: { grid: { display: false }, ticks: { font: { size: 9 } } } }
                         }
                     });
                     updateChart();
@@ -277,17 +282,16 @@
 
                 const updateChart = () => {
                     if (chart) {
-                        chart.data.datasets[0].data = Array.from({length: 20}, (_, i) => calculateFutureValue(i+1));
+                        chart.data.labels = Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`);
+                        chart.data.datasets[0].data = Array.from({length: targetYears.value}, (_, i) => calculateFutureValue(i+1));
                         chart.update();
                     }
                 };
 
-                watch(stocks, (newVal) => {
+                watch([stocks, targetYears], () => {
                     if (currentStep.value === 2) {
-                        localStorage.setItem('tw_stock_share_v1', JSON.stringify({
-                            step: 2,
-                            selectedIds: selectedIds.value,
-                            stocks: newVal
+                        localStorage.setItem('tw_stock_final_pro', JSON.stringify({
+                            step: 2, selectedIds: selectedIds.value, stocks: stocks.value, targetYears: targetYears.value
                         }));
                         updateChart();
                     }
@@ -295,26 +299,24 @@
 
                 const resetData = () => {
                     if(confirm("重置並回到標的選擇頁面？")) {
-                        localStorage.removeItem('tw_stock_share_v1');
+                        localStorage.removeItem('tw_stock_final_pro');
                         location.reload();
                     }
                 };
 
                 onMounted(() => {
-                    const saved = localStorage.getItem('tw_stock_share_v1');
+                    const saved = localStorage.getItem('tw_stock_final_pro');
                     if (saved) {
                         const parsed = JSON.parse(saved);
                         selectedIds.value = parsed.selectedIds;
                         stocks.value = parsed.stocks;
+                        targetYears.value = parsed.targetYears || 20;
                         currentStep.value = 2;
                         setTimeout(() => { fetchPrices(); initChart(); }, 100);
                     }
                 });
 
-                return { 
-                    currentStep, hotList, selectedIds, customInput, stocks, loading,
-                    toggleStock, addCustomStock, goToDashboard, calculateFutureValue, getDividendStocks, resetData 
-                };
+                return { currentStep, hotList, selectedIds, customInput, stocks, loading, targetYears, currentInventoryValue, totalMonthlyAmount, toggleStock, addCustomStock, goToDashboard, calculateFutureValue, getDividendStocks, resetData };
             }
         }).mount('#app');
     </script>
