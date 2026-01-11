@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股投資規畫工具 - 專業配息精準版</title>
+    <title>台股投資規畫工具 - 修復排序與選取版</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,27 +14,46 @@
         <div v-if="currentStep === 1" class="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200">
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight">開始投資規畫</h1>
-                <p class="text-slate-500 mt-2">請選取或輸入想試算的股票代號</p>
+                <p class="text-slate-500 mt-2">請選取或手動輸入股票代號（已自動由小到大排序）</p>
             </div>
+            
             <div class="space-y-6">
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-3">熱門推薦</label>
                     <div class="flex flex-wrap gap-2">
-                        <button v-for="id in hotList" :key="id" @click="toggleStock(id)"
+                        <button v-for="id in sortedHotList" :key="id" 
+                                @click="toggleStock(id)"
                                 :class="['px-4 py-2 rounded-xl border-2 font-bold transition-all', 
-                                selectedIds.includes(id) ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-500']">
+                                selectedIds.includes(id) ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-blue-300']">
                             {{ id }}
                         </button>
                     </div>
                 </div>
+
                 <div>
-                    <input type="text" v-model="customInput" placeholder="例如: 00713" @keyup.enter="addCustomStock"
-                           class="w-full border-2 border-slate-100 rounded-xl px-4 py-2 mb-4 outline-none focus:border-blue-500">
-                    <button @click="goToDashboard" :disabled="selectedIds.length === 0"
-                            class="w-full py-4 rounded-2xl font-black text-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 shadow-xl transition-all">
-                        下一步：進入試算儀表板
-                    </button>
+                    <label class="block text-sm font-bold text-slate-700 mb-3">自定義加入</label>
+                    <div class="flex gap-2">
+                        <input type="text" v-model="customInput" placeholder="例如: 00713" @keyup.enter="addCustomStock"
+                               class="flex-1 border-2 border-slate-100 rounded-xl px-4 py-2 outline-none focus:border-blue-500 font-mono">
+                        <button @click="addCustomStock" class="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors">加入</button>
+                    </div>
                 </div>
+
+                <div v-if="selectedIds.length > 0" class="pt-6 border-t border-slate-100">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">您的投資組合清單</label>
+                    <div class="flex flex-wrap gap-2">
+                        <div v-for="id in sortedSelectedIds" :key="id" class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full text-sm font-bold text-blue-600 border border-blue-100">
+                            {{ id }}
+                            <button @click="toggleStock(id)" class="text-blue-300 hover:text-red-500 font-black">×</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="goToDashboard" :disabled="selectedIds.length === 0"
+                        class="w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all"
+                        :class="selectedIds.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'">
+                    下一步：進入試算儀表板
+                </button>
             </div>
         </div>
 
@@ -43,13 +62,13 @@
                 <div class="flex items-center gap-4">
                     <button @click="currentStep = 1" class="bg-white border border-slate-200 p-2 rounded-xl hover:bg-slate-50 shadow-sm">⬅ 返回</button>
                     <div>
-                        <h1 class="text-3xl font-black text-slate-800">試算儀表板</h1>
-                        <p class="text-slate-500 text-sm">已啟用快取與防抖機制，保護 API 額度</p>
+                        <h1 class="text-3xl font-black text-slate-800">投資規畫儀表板</h1>
+                        <p class="text-slate-500 text-sm">數據每小時自動快取，保護 API 額度</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span v-if="loading" class="text-xs bg-amber-100 text-amber-600 px-3 py-1 rounded-full animate-pulse font-bold">同步中...</span>
-                    <button @click="resetData" class="text-xs text-slate-400 hover:text-red-500 underline">重置</button>
+                    <span v-if="loading" class="text-xs bg-amber-100 text-amber-600 px-3 py-1 rounded-full animate-pulse font-bold">同步 API 中...</span>
+                    <button @click="resetData" class="text-xs text-slate-400 hover:text-red-500 underline">重置所有資料</button>
                 </div>
             </div>
 
@@ -59,7 +78,7 @@
                         <table class="w-full text-left border-collapse min-w-[600px]">
                             <thead>
                                 <tr class="bg-slate-800 text-white text-[10px] uppercase tracking-wider">
-                                    <th class="p-4">標的/現價</th>
+                                    <th class="p-4">股票代號/現價</th>
                                     <th class="p-4 text-center">庫存(張)</th>
                                     <th class="p-4 text-center">每月扣款(千)</th>
                                     <th class="p-4 text-center">每月次數</th>
@@ -68,12 +87,12 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <tr v-for="stock in stocks" :key="stock.id" class="hover:bg-slate-50">
+                                <tr v-for="stock in sortedStocks" :key="stock.id" class="hover:bg-slate-50">
                                     <td class="p-4">
                                         <div class="font-bold text-slate-700">{{ stock.id }}</div>
-                                        <div class="text-[11px] text-blue-500 font-mono">{{ stock.price ? `$${stock.price}` : '...' }}</div>
+                                        <div class="text-[11px] text-blue-500 font-mono">{{ stock.price ? `$${stock.price}` : '載入中...' }}</div>
                                     </td>
-                                    <td class="p-4 text-center"><input type="number" v-model.number="stock.holdings" class="w-16 border rounded text-center py-1 bg-blue-50/50 outline-none"></td>
+                                    <td class="p-4 text-center"><input type="number" v-model.number="stock.holdings" class="w-16 border rounded text-center py-1 bg-blue-50/50 outline-none focus:border-blue-400"></td>
                                     <td class="p-4 text-center"><input type="number" v-model.number="stock.amount" class="w-14 border rounded text-center py-1 outline-none"></td>
                                     <td class="p-4 text-center"><input type="number" v-model.number="stock.frequency" class="w-10 border rounded text-center py-1 outline-none"></td>
                                     <td class="p-4 text-center"><input type="number" v-model.number="stock.rate" step="0.5" class="w-12 text-center text-emerald-600 font-bold bg-transparent">%</td>
@@ -107,12 +126,12 @@
                     </div>
 
                     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">資產增長曲線 ({{ targetYears }}年)</h3>
+                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">資產增長曲線</h3>
                         <div class="h-[250px]"><canvas id="growthChart"></canvas></div>
                     </div>
 
                     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">年度預計領息月份 (近1年)</h3>
+                        <h3 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">年度預計領息月份 (近12個月分析)</h3>
                         <div class="grid grid-cols-3 gap-3">
                             <div v-for="m in 12" :key="m" 
                                  :class="['p-3 rounded-xl border transition-all min-h-[85px]', 
@@ -139,13 +158,12 @@
     <script>
         const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-        // 全域快取，避免重複請求
-        const apiCache = {}; 
+        const apiCache = {}; // 全域 API 快取容器
 
         createApp({
             setup() {
                 const currentStep = ref(1);
-                const hotList = ['0050', '0056', '00878', '006208', '2330'];
+                const hotList = ref(['0050', '0056', '006208', '00878', '2330']);
                 const selectedIds = ref([]);
                 const customInput = ref("");
                 const stocks = ref([]);
@@ -163,7 +181,30 @@
                     'default': { months: [1, 4, 7, 10], rate: 7.0 }
                 };
 
-                // --- 運算邏輯 (forEach 版) ---
+                // --- 排序計算屬性 ---
+                const sortedHotList = computed(() => [...hotList.value].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})));
+                const sortedSelectedIds = computed(() => [...selectedIds.value].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})));
+                const sortedStocks = computed(() => [...stocks.value].sort((a, b) => a.id.localeCompare(b.id, undefined, {numeric: true})));
+
+                // --- 選取與加入邏輯 ---
+                const toggleStock = (id) => {
+                    const index = selectedIds.value.indexOf(id);
+                    if (index > -1) {
+                        selectedIds.value.splice(index, 1);
+                    } else {
+                        selectedIds.value.push(id);
+                    }
+                };
+
+                const addCustomStock = () => {
+                    const id = customInput.value.trim();
+                    if (id && !selectedIds.value.includes(id)) {
+                        selectedIds.value.push(id);
+                    }
+                    customInput.value = "";
+                };
+
+                // --- 核心運算邏輯 (forEach 版) ---
                 const currentInventoryValue = computed(() => {
                     let total = 0;
                     stocks.value.forEach(s => { total += (s.holdings || 0) * 1000 * (s.price || 0); });
@@ -201,78 +242,59 @@
                             const divPerTime = s.avgDividend / s.months.length;
                             const fromHoldings = (s.holdings || 0) * 1000 * divPerTime;
                             const monthlyShares = ((s.amount || 0) * 1000) / (s.price || 150);
-                            const fromSIP = (monthlyShares * 6) * divPerTime; // 粗估半年平均持有量
+                            const fromSIP = (monthlyShares * 6) * divPerTime;
                             total += (fromHoldings + fromSIP);
                         }
                     });
                     return Math.round(total);
                 };
 
-                // --- 核心優化：配息計算與 API 快取 ---
+                // --- API 抓取與快取 ---
                 const fetchPricesAndDividends = async (force = false) => {
                     if (loading.value && !force) return;
                     loading.value = true;
                     try {
                         const now = new Date();
                         const oneYearAgo = new Date();
-                        oneYearAgo.setFullYear(now.getFullYear() - 1); // 取得 12 個月前的時間點
+                        oneYearAgo.setFullYear(now.getFullYear() - 1);
 
                         const tasks = stocks.value.map(async (s) => {
-                            // 檢查快取 (1小時內有效)
+                            // 快取機制 (1小時)
                             if (!force && apiCache[s.id] && (Date.now() - apiCache[s.id].timestamp < 3600000)) {
                                 s.price = apiCache[s.id].price;
                                 s.avgDividend = apiCache[s.id].avgDividend;
                                 return;
                             }
 
-                            // 1. 抓股價
-                            const pParam = new URLSearchParams({ dataset: "TaiwanStockPrice", data_id: s.id, start_date: new Date(Date.now() - 864000000).toISOString().split('T')[0] });
-                            const pRes = await fetch(`https://api.finmindtrade.com/api/v4/data?${pParam}`).then(r => r.json());
+                            // 抓股價
+                            const pUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${s.id}&start_date=${new Date(Date.now() - 864000000).toISOString().split('T')[0]}`;
+                            const pRes = await fetch(pUrl).then(r => r.json());
                             const currentPrice = pRes.data?.length > 0 ? pRes.data[pRes.data.length - 1].close : s.price;
 
-                            // 2. 抓配息 (過去兩年資料以確保能篩選出最近12個月)
-                            const dParam = new URLSearchParams({ dataset: "TaiwanStockDividend", data_id: s.id, start_date: new Date(Date.now() - 63072000000).toISOString().split('T')[0] });
-                            const dRes = await fetch(`https://api.finmindtrade.com/api/v4/data?${dParam}`).then(r => r.json());
+                            // 抓配息 (精準篩選 12 個月)
+                            const dUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockDividend&data_id=${s.id}&start_date=${oneYearAgo.toISOString().split('T')[0]}`;
+                            const dRes = await fetch(dUrl).then(r => r.json());
 
                             let totalDiv = 0;
                             if (dRes.data?.length > 0) {
                                 dRes.data.forEach(item => {
-                                    // 判斷除息日或除權日是否在 12 個月內
                                     const cashDate = item.CashExDividendTradingDate ? new Date(item.CashExDividendTradingDate) : null;
                                     const stockDate = item.StockExDividendTradingDate ? new Date(item.StockExDividendTradingDate) : null;
-                                    
-                                    const isRecentCash = cashDate && cashDate >= oneYearAgo;
-                                    const isRecentStock = stockDate && stockDate >= oneYearAgo;
-
-                                    if (isRecentCash || isRecentStock) {
-                                        const cashVal = item.CashEarningsDistribution || 0;
-                                        const stockVal = (item.StockEarningsDistribution || 0) + (item.StockStatutorySurplus || 0);
-                                        totalDiv += (cashVal + stockVal);
+                                    if ((cashDate && cashDate >= oneYearAgo) || (stockDate && stockDate >= oneYearAgo)) {
+                                        totalDiv += (item.CashEarningsDistribution || 0) + (item.StockEarningsDistribution || 0) + (item.StockStatutorySurplus || 0);
                                     }
                                 });
                             }
 
-                            // 更新資料與快取
                             s.price = currentPrice;
                             s.avgDividend = totalDiv;
                             apiCache[s.id] = { price: currentPrice, avgDividend: totalDiv, timestamp: Date.now() };
                         });
                         await Promise.all(tasks);
-                    } catch (e) {
-                        console.error("API Error:", e);
-                    } finally {
-                        loading.value = false;
-                    }
+                    } finally { loading.value = false; }
                 };
 
-                // --- 防抖觸發機制 ---
-                const debouncedFetch = () => {
-                    if (debounceTimer) clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => {
-                        fetchPricesAndDividends();
-                    }, 1000); // 停止輸入 1 秒後才執行
-                };
-
+                // --- UI 控制 ---
                 const initChart = () => {
                     const ctx = document.getElementById('growthChart').getContext('2d');
                     if (chart) chart.destroy();
@@ -291,20 +313,10 @@
                             plugins: { legend: { display: false } },
                             scales: { 
                                 y: { ticks: { font: { size: 10 }, callback: v => (v/10000).toFixed(0) + '萬' } },
-                                x: { grid: { display: false }, ticks: { font: { size: 9 } } } 
+                                x: { grid: { display: false } } 
                             }
                         }
                     });
-                };
-
-                const updateChart = () => {
-                    if (chart) {
-                        chart.data.labels = Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`);
-                        const newData = [];
-                        for(let i=1; i<=targetYears.value; i++) { newData.push(calculateFutureValue(i)); }
-                        chart.data.datasets[0].data = newData;
-                        chart.update();
-                    }
                 };
 
                 const goToDashboard = async () => {
@@ -318,45 +330,41 @@
                     initChart();
                 };
 
-                watch([stocks, targetYears], () => {
-                    if (currentStep.value === 2) {
-                        localStorage.setItem('tw_stock_pro_v10', JSON.stringify({
-                            step: 2, selectedIds: selectedIds.value, stocks: stocks.value, targetYears: targetYears.value
-                        }));
-                        updateChart();
-                        debouncedFetch(); // 使用防抖更新 API 資料
-                    }
-                }, { deep: true });
+                const resetData = () => { if(confirm("確定重置？")) { localStorage.removeItem('tw_stock_v11'); location.reload(); } };
 
-                const toggleStock = (id) => {
-                    const idx = selectedIds.value.indexOf(id);
-                    if (idx > -1) selectedIds.value.splice(idx, 1);
-                    else selectedIds.value.push(id);
-                };
-                const addCustomStock = () => {
-                    if (customInput.value && !selectedIds.value.includes(customInput.value)) {
-                        selectedIds.value.push(customInput.value.trim());
-                        customInput.value = "";
-                    }
-                };
                 const getDividendStocks = (month) => {
                     const codes = [];
                     stocks.value.forEach(s => { if (((s.amount || 0) > 0 || (s.holdings || 0) > 0) && s.months.includes(month)) codes.push(s.id); });
                     return codes;
                 };
-                const resetData = () => { if(confirm("確定重置？")) { localStorage.removeItem('tw_stock_pro_v10'); location.reload(); } };
+
+                // --- 監聽與持久化 ---
+                watch([stocks, targetYears], () => {
+                    if (currentStep.value === 2) {
+                        localStorage.setItem('tw_stock_v11', JSON.stringify({
+                            step: 2, selectedIds: selectedIds.value, stocks: stocks.value, targetYears: targetYears.value
+                        }));
+                        if (chart) {
+                            chart.data.labels = Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`);
+                            chart.data.datasets[0].data = Array.from({length: targetYears.value}, (_, i) => calculateFutureValue(i+1));
+                            chart.update();
+                        }
+                        if (debounceTimer) clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => fetchPricesAndDividends(), 1500);
+                    }
+                }, { deep: true });
 
                 onMounted(() => {
-                    const saved = localStorage.getItem('tw_stock_pro_v10');
+                    const saved = localStorage.getItem('tw_stock_v11');
                     if (saved) {
                         const p = JSON.parse(saved);
                         selectedIds.value = p.selectedIds; stocks.value = p.stocks; targetYears.value = p.targetYears || 20;
                         currentStep.value = 2;
-                        setTimeout(() => { fetchPricesAndDividends(true); initChart(); }, 100);
+                        setTimeout(() => { fetchPricesAndDividends(true); initChart(); }, 200);
                     }
                 });
 
-                return { currentStep, hotList, selectedIds, customInput, stocks, loading, targetYears, currentInventoryValue, totalMonthlyAmount, toggleStock, addCustomStock, goToDashboard, calculateFutureValue, getDividendStocks, getMonthlyDividendAmount, resetData };
+                return { currentStep, sortedHotList, selectedIds, sortedSelectedIds, sortedStocks, customInput, stocks, loading, targetYears, currentInventoryValue, totalMonthlyAmount, toggleStock, addCustomStock, goToDashboard, calculateFutureValue, getDividendStocks, getMonthlyDividendAmount, resetData };
             }
         }).mount('#app');
     </script>
