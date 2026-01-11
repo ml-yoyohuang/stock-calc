@@ -21,6 +21,13 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             box-sizing: border-box; /* 確保 padding 不會影響寬度 */
+
+            /* 將 SVG 轉為編碼後的 URL */
+            background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' opacity='0.15' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='translate(25, 25) scale(1)'%3E%3Cpath d='M10,25 L25,5 L40,22' fill='none' stroke='%234a4a4a' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M60,25 L45,5 L30,22' fill='none' stroke='%234a4a4a' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cellipse cx='35' cy='45' rx='35' ry='30' fill='white' stroke='%234a4a4a' stroke-width='5'/%3E%3Cpath d='M18,45 Q23,40 28,45' fill='none' stroke='%234a4a4a' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M42,45 Q47,40 52,45' fill='none' stroke='%234a4a4a' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M30,55 Q35,60 40,55' fill='none' stroke='%234a4a4a' stroke-width='3' stroke-linecap='round'/%3E%3C/g%3E%3Cg transform='translate(135, 35)'%3E%3Ccircle cx='15' cy='15' r='18' fill='%23fff9c4' stroke='%23fbc02d' stroke-width='4'/%3E%3Ctext x='15' y='22' font-family='Arial' font-size='20' font-weight='bold' text-anchor='middle' fill='%23fbc02d'%3E$%3C/text%3E%3C/g%3E%3Cg transform='translate(25, 135)'%3E%3Cpath d='M10,25 L20,15 L30,20 L45,5' fill='none' stroke='%23ef5350' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M35,5 H45 V15' fill='none' stroke='%23ef5350' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/g%3E%3Cg transform='translate(125, 125) scale(1)'%3E%3Cpath d='M10,25 L25,5 L40,22' fill='none' stroke='%234a4a4a' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M60,25 L45,5 L30,22' fill='none' stroke='%234a4a4a' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cellipse cx='35' cy='45' rx='35' ry='30' fill='white' stroke='%234a4a4a' stroke-width='5'/%3E%3Cpath d='M18,45 Q23,40 28,45' fill='none' stroke='%234a4a4a' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M42,45 Q47,40 52,45' fill='none' stroke='%234a4a4a' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M30,55 Q35,60 40,55' fill='none' stroke='%234a4a4a' stroke-width='3' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+            background-position: top 0 left -5px;
+            background-repeat: repeat;
+            background-size: 90px 90px; /* 調整這個數值可以改變圖案的大小 */
+            background-color: #bfdbfe22; /* 基底顏色 */
         }
         #report-template h2 {
             font-size: 24px;
