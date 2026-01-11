@@ -481,13 +481,38 @@
                     html2canvas(reportElement, {
                         scale: 2,
                         logging: false,
-                        backgroundColor: "#f8fafc" // 設定截圖背景色
+                        backgroundColor: "#f8fafc"
                     }).then(canvas => {
-                        const link = document.createElement('a');
-                        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                        link.download = `台股投資規畫報告_${date}.png`;
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
+                        const imgData = canvas.toDataURL('image/png');
+                        
+                        // --- 判斷是否為 iOS 裝置 ---
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                        if (isIOS) {
+                            // iOS: 另開視窗，方便使用者長按儲存
+                            const newWindow = window.open();
+                            if (newWindow) {
+                                newWindow.document.write(`
+                                    <html>
+                                        <head><title>您的投資報告 (長按圖片儲存)</title></head>
+                                        <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#f0f2f5; font-family:sans-serif;">
+                                            <p style="margin-top:20px; color:#64748b; font-size:14px;">↑ 長按圖片即可儲存或分享 ↑</p>
+                                            <img src="${imgData}" style="max-width:95%; height:auto; box-shadow:0 10px 25px rgba(0,0,0,0.1); border-radius:8px;" />
+                                        </body>
+                                    </html>
+                                `);
+                            } else {
+                                alert("請允許開啟彈出視窗以查看報告");
+                            }
+                        } else {
+                            // 非 iOS (Android/PC): 維持原本的自動下載
+                            const link = document.createElement('a');
+                            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                            link.download = `台股投資規畫報告_${date}.png`;
+                            link.href = imgData;
+                            link.click();
+                        }
                     });
                 };
 
