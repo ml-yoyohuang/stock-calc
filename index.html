@@ -3,10 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股投資規畫工具 - 修復排序與選取版</title>
+    <title>台股投資規畫工具 - 加上分享圖片試做版</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        /* 隱藏的報表樣板，不會顯示在畫面上，但會用於截圖 */
+        #report-template {
+            position: absolute;
+            left: -9999px; /* 移到螢幕外 */
+            top: -9999px;
+            width: 450px; /* 固定報表寬度，方便分享 */
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            box-sizing: border-box; /* 確保 padding 不會影響寬度 */
+        }
+        #report-template h2 {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6; /* 藍色 */
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        #report-template .report-section {
+            background-color: #e0f2fe; /* 淺藍色 */
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #bfdbfe; /* 淺藍邊框 */
+        }
+        #report-template .report-section-dark {
+            background-color: #1f2937; /* 深灰 */
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        #report-template .report-label {
+            font-size: 12px;
+            color: #60a5fa; /* 較深的藍 */
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        #report-template .report-label-dark {
+            font-size: 12px;
+            color: #9ca3af; /* 淺灰 */
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        #report-template .report-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1d4ed8; /* 更深的藍 */
+        }
+        #report-template .report-value-light {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+        }
+        #report-template .report-footer {
+            text-align: center;
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 20px;
+        }
+        /* Chart.js 相關設定 */
+        #report-template #reportChart {
+            background-color: #fff; /* 圖表背景色 */
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
     <div id="app" class="max-w-7xl mx-auto px-4 py-12">
@@ -68,6 +139,9 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <span v-if="loading" class="text-xs bg-amber-100 text-amber-600 px-3 py-1 rounded-full animate-pulse font-bold">同步 API 中...</span>
+                    <button @click="generateReportImage" class="bg-blue-500 text-white text-sm px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-600 transition-colors shadow-sm">
+                        📸 下載報表
+                    </button>
                     <button @click="resetData" class="text-xs text-slate-400 hover:text-red-500 underline">重置所有資料</button>
                 </div>
             </div>
@@ -155,6 +229,29 @@
         </div>
     </div>
 
+    <div id="report-template">
+        <h2>💰 您的投資規畫報告 📈</h2>
+        <div class="report-section">
+            <div class="report-label">目前庫存市值</div>
+            <div class="report-value" id="rep-current-val">NT$ 0 萬</div>
+        </div>
+        <div class="report-section">
+            <div class="report-label">每月投入總額</div>
+            <div class="report-value" id="rep-monthly-val">NT$ 0 K</div>
+        </div>
+        <div class="report-section-dark">
+            <div class="report-label-dark" id="rep-target-label">預估 20 年後總價值</div>
+            <div class="report-value-light" id="rep-future-val">NT$ 0 萬 🎉</div>
+        </div>
+        <div class="report-section" style="padding: 10px;">
+            <div class="report-label" style="margin-bottom: 20px;">資產增長曲線</div>
+            <canvas id="reportChart" width="390" height="200"></canvas>
+        </div>
+        <div class="report-footer">
+            報告生成時間: <span id="rep-time"></span> | 資料來源: FinMind API
+        </div>
+    </div>
+
     <script>
         const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
@@ -163,13 +260,16 @@
         createApp({
             setup() {
                 const currentStep = ref(1);
-                const hotList = ref(['0050', '0056', '006208', '00878', '2330']);
+                // hotList 的排序已在 sortedHotList 中處理
+                const hotList = ref(['0050', '0056', '006208', '00878', '2330']); 
                 const selectedIds = ref([]);
                 const customInput = ref("");
                 const stocks = ref([]);
                 const loading = ref(false);
                 const targetYears = ref(20);
-                let chart = null;
+                const currentDateTime = ref(''); // 用於報表時間
+                let chart = null; // 主要儀表板圖表
+                let reportChartInstance = null; // 報表專用圖表實例
                 let debounceTimer = null;
 
                 const masterData = {
@@ -178,13 +278,23 @@
                     '00878': { months: [2, 5, 8, 11], rate: 6.0 },
                     '006208': { months: [1, 7], rate: 8.5 },
                     '2330': { months: [3, 6, 9, 12], rate: 12.0 },
+                    '00919': { months: [3, 6, 9, 12], rate: 10.0 }, // 預設值，可能需要實際抓取後調整
+                    '00929': { months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], rate: 8.0 }, // 預設值，可能需要實際抓取後調整
                     'default': { months: [1, 4, 7, 10], rate: 7.0 }
                 };
 
                 // --- 排序計算屬性 ---
-                const sortedHotList = computed(() => [...hotList.value].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})));
-                const sortedSelectedIds = computed(() => [...selectedIds.value].sort((a, b) => a.localeCompare(b, undefined, {numeric: true})));
-                const sortedStocks = computed(() => [...stocks.value].sort((a, b) => a.id.localeCompare(b.id, undefined, {numeric: true})));
+                const sortedHotList = computed(() => [...hotList.value].sort());
+                const sortedSelectedIds = computed(() => {
+                    // 移除 numeric: true，回歸純字串字典序比較
+                    return [...selectedIds.value].sort();
+                });
+                
+                const sortedStocks = computed(() => {
+                    // 同樣回歸純字串比較
+                    return [...stocks.value].sort((a, b) => a.id.localeCompare(b.id));
+                });
+
 
                 // --- 選取與加入邏輯 ---
                 const toggleStock = (id) => {
@@ -242,7 +352,7 @@
                             const divPerTime = s.avgDividend / s.months.length;
                             const fromHoldings = (s.holdings || 0) * 1000 * divPerTime;
                             const monthlyShares = ((s.amount || 0) * 1000) / (s.price || 150);
-                            const fromSIP = (monthlyShares * 6) * divPerTime;
+                            const fromSIP = (monthlyShares * 6) * divPerTime; // 粗估半年平均持有量
                             total += (fromHoldings + fromSIP);
                         }
                     });
@@ -294,7 +404,7 @@
                     } finally { loading.value = false; }
                 };
 
-                // --- UI 控制 ---
+                // --- 圖表相關功能 ---
                 const initChart = () => {
                     const ctx = document.getElementById('growthChart').getContext('2d');
                     if (chart) chart.destroy();
@@ -319,6 +429,69 @@
                     });
                 };
 
+                const updateCharts = () => {
+                    if (chart) {
+                        chart.data.labels = Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`);
+                        chart.data.datasets[0].data = Array.from({length: targetYears.value}, (_, i) => calculateFutureValue(i+1));
+                        chart.update();
+                    }
+                    // 確保 reportChartInstance 在 generateReportImage 時能被正確建立和更新
+                };
+
+                // --- 圖片報表生成功能 ---
+                const generateReportImage = async () => {
+                    const reportElement = document.getElementById('report-template');
+                    if (!reportElement) return;
+
+                    // --- 強制更新報表內的文字 (解決 Vue 語法沒跑出來的問題) ---
+                    document.getElementById('rep-current-val').innerText = `NT$ ${(currentInventoryValue.value/10000).toFixed(1)} 萬`;
+                    document.getElementById('rep-monthly-val').innerText = `NT$ ${(totalMonthlyAmount.value/1000).toFixed(1)} K`;
+                    document.getElementById('rep-target-label').innerText = `預估 ${targetYears.value} 年後總價值`;
+                    document.getElementById('rep-future-val').innerText = `NT$ ${(calculateFutureValue(targetYears.value)/10000).toFixed(0)} 萬 🎉`;
+                    document.getElementById('rep-time').innerText = new Date().toLocaleString();
+
+                    // 更新圖表 (維持原樣)
+                    const reportChartCtx = document.getElementById('reportChart').getContext('2d');
+                    if (reportChartInstance) reportChartInstance.destroy();
+
+                    reportChartInstance = new Chart(reportChartCtx, {
+                        type: 'line',
+                        data: {
+                            labels: Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`),
+                            datasets: [{ 
+                                data: Array.from({length: targetYears.value}, (_, i) => calculateFutureValue(i+1)),
+                                borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                fill: true, tension: 0.4, pointRadius: 0
+                            }]
+                        },
+                        options: {
+                            responsive: false, // 報表圖表建議關閉響應式，固定尺寸截圖更準
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { 
+                                y: { ticks: { font: { size: 10 }, callback: v => (v/10000).toFixed(0) + '萬' } },
+                                x: { grid: { display: false }, ticks: { font: { size: 9 } } } 
+                            }
+                        }
+                    });
+
+                    // 給予一點時間讓圖表與文字渲染完全
+                    await new Promise(resolve => setTimeout(resolve, 300)); 
+
+                    html2canvas(reportElement, {
+                        scale: 2,
+                        logging: false,
+                        backgroundColor: "#f8fafc" // 設定截圖背景色
+                    }).then(canvas => {
+                        const link = document.createElement('a');
+                        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                        link.download = `台股投資規畫報告_${date}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    });
+                };
+
+                // --- UI 流程控制 ---
                 const goToDashboard = async () => {
                     stocks.value = selectedIds.value.map(id => {
                         const meta = masterData[id] || masterData['default'];
@@ -330,41 +503,61 @@
                     initChart();
                 };
 
-                const resetData = () => { if(confirm("確定重置？")) { localStorage.removeItem('tw_stock_v11'); location.reload(); } };
+                const resetData = () => { 
+                    if(confirm("確定重置？這會清除所有設定。")) { 
+                        localStorage.removeItem('tw_stock_v12_share_image'); 
+                        location.reload(); 
+                    } 
+                };
 
                 const getDividendStocks = (month) => {
                     const codes = [];
-                    stocks.value.forEach(s => { if (((s.amount || 0) > 0 || (s.holdings || 0) > 0) && s.months.includes(month)) codes.push(s.id); });
+                    stocks.value.forEach(s => { 
+                        if (((s.amount || 0) > 0 || (s.holdings || 0) > 0) && s.months.includes(month)) {
+                            codes.push(s.id); 
+                        }
+                    });
                     return codes;
                 };
 
                 // --- 監聽與持久化 ---
                 watch([stocks, targetYears], () => {
                     if (currentStep.value === 2) {
-                        localStorage.setItem('tw_stock_v11', JSON.stringify({
+                        localStorage.setItem('tw_stock_v12_share_image', JSON.stringify({
                             step: 2, selectedIds: selectedIds.value, stocks: stocks.value, targetYears: targetYears.value
                         }));
-                        if (chart) {
-                            chart.data.labels = Array.from({length: targetYears.value}, (_, i) => `${i+1}Y`);
-                            chart.data.datasets[0].data = Array.from({length: targetYears.value}, (_, i) => calculateFutureValue(i+1));
-                            chart.update();
-                        }
+                        updateCharts(); // 更新兩個圖表
                         if (debounceTimer) clearTimeout(debounceTimer);
                         debounceTimer = setTimeout(() => fetchPricesAndDividends(), 1500);
                     }
                 }, { deep: true });
 
                 onMounted(() => {
-                    const saved = localStorage.getItem('tw_stock_v11');
+                    const saved = localStorage.getItem('tw_stock_v12_share_image');
+
                     if (saved) {
                         const p = JSON.parse(saved);
-                        selectedIds.value = p.selectedIds; stocks.value = p.stocks; targetYears.value = p.targetYears || 20;
-                        currentStep.value = 2;
-                        setTimeout(() => { fetchPricesAndDividends(true); initChart(); }, 200);
+                        selectedIds.value = p.selectedIds || [];
+                        stocks.value = p.stocks || [];
+                        targetYears.value = p.targetYears || 20;
+                        currentStep.value = p.step || 1;
+                        
+                        if (currentStep.value === 2) {
+                            setTimeout(() => { 
+                                fetchPricesAndDividends(true); 
+                                initChart(); 
+                            }, 200);
+                        }
                     }
                 });
 
-                return { currentStep, sortedHotList, selectedIds, sortedSelectedIds, sortedStocks, customInput, stocks, loading, targetYears, currentInventoryValue, totalMonthlyAmount, toggleStock, addCustomStock, goToDashboard, calculateFutureValue, getDividendStocks, getMonthlyDividendAmount, resetData };
+                return { 
+                    currentStep, sortedHotList, selectedIds, sortedSelectedIds, sortedStocks, 
+                    customInput, stocks, loading, targetYears, currentInventoryValue, 
+                    totalMonthlyAmount, toggleStock, addCustomStock, goToDashboard, 
+                    calculateFutureValue, getDividendStocks, getMonthlyDividendAmount, 
+                    resetData, generateReportImage, currentDateTime 
+                };
             }
         }).mount('#app');
     </script>
